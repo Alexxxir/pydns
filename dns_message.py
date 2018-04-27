@@ -181,7 +181,7 @@ class DNSMessage:
         self.addit_records = addit_records
 
     @staticmethod
-    def make_answer(question, cash_answers):
+    def make_answer(question, cache_answers):
         answer = DNSMessage(id=question.id, response_type=1,
                             opcode=question.opcode,
                             is_authoritative_answer=False,
@@ -197,7 +197,7 @@ class DNSMessage:
                 request_class=question.questions[0].request_class,
                 ttl=300,
                 data_len=len(answer.data),
-                data=bytearray(answer.data)), cash_answers))
+                data=bytearray(answer.data)), cache_answers))
         return answer
 
     def __hash__(self):

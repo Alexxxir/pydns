@@ -9,7 +9,7 @@ import threading
 import itertools
 
 
-class CashData(dict):
+class CacheData(dict):
     def __init__(self, death_time=None, data=None):
         self._death_time = death_time
         self._data = data
@@ -46,7 +46,7 @@ class CashData(dict):
         for key in load:
             new_arr = []
             for rec in load[key]:
-                new_arr.append(CashData(rec["death_time"], rec["data"]))
+                new_arr.append(CacheData(rec["death_time"], rec["data"]))
             load[key] = new_arr
         return load
 
@@ -64,7 +64,7 @@ class CashData(dict):
 
 
 class DNSServer:
-    CASH_FILES_NAMES = ["addresses", "domains", "domains_6"]
+    CACHE_FILES_NAMES = ["addresses", "domains", "domains_6"]
 
     def __init__(self, host, port, asked_server):
         self._asked_server = asked_server
@@ -74,13 +74,13 @@ class DNSServer:
         self._requests = None
         self._list_answers = None
         self._is_listen = False
-        self._cash_files = None
+        self._cache_files = None
 
     @staticmethod
-    def clear_cash():
+    def clear_cache():
         try:
-            for file_name in DNSServer.CASH_FILES_NAMES:
-                with open("%s.json" % file_name, "w") as file:
+            for file_name in DNSServer.CACHE_FILES_NAMES:
+                with open("cache/%s.json" % file_name, "w") as file:
                     file.write("{}\n")
             print("Кэш сервера отчищен")
         except Exception as e:
@@ -113,23 +113,23 @@ class DNSServer:
                         answer.auth_servers, answer.addit_records):
                     if ans.data:
                         if ans.request_type == RecordType.A:
-                            if not self._cash_files["domains"].get(ans.name):
-                                self._cash_files["domains"][ans.name] = []
-                            self._cash_files["domains"][ans.name].append(CashData(
-                                ans.ttl + int(time.time()),
-                                list(ans.data)))
+                            if not self._cache_files["domains"].get(ans.name):
+                                self._cache_files["domains"][ans.name] = []
+                            self._cache_files["domains"][ans.name].append(
+                                CacheData(ans.ttl + int(time.time()),
+                                          list(ans.data)))
                         elif ans.request_type == RecordType.AAAA:
-                            if not self._cash_files["domains_6"].get(ans.name):
-                                self._cash_files["domains_6"][ans.name] = []
-                            self._cash_files["domains_6"][ans.name].append(CashData(
-                                ans.ttl + int(time.time()),
-                                list(ans.data)))
+                            if not self._cache_files["domains_6"].get(ans.name):
+                                self._cache_files["domains_6"][ans.name] = []
+                            self._cache_files["domains_6"][ans.name].append(
+                                CacheData(ans.ttl + int(time.time()),
+                                          list(ans.data)))
                         else:
-                            if not self._cash_files["addresses"].get(ans.name):
-                                self._cash_files["addresses"][ans.name] = []
-                            self._cash_files["addresses"][ans.name].append(CashData(
-                                ans.ttl + int(time.time()),
-                                list(ans.data)))
+                            if not self._cache_files["addresses"].get(ans.name):
+                                self._cache_files["addresses"][ans.name] = []
+                            self._cache_files["addresses"][ans.name].append(
+                                CacheData(ans.ttl + int(time.time()),
+                                          list(ans.data)))
                 if request[0].id == answer.id:
                     self._sock.sendto(
                         answer.to_bytes(), request[1])
@@ -139,40 +139,40 @@ class DNSServer:
         self._list_answers = set()
 
     def run(self):
-        self._cash_files = dict(zip(DNSServer.CASH_FILES_NAMES, [{}] * 3))
-        for file_name in DNSServer.CASH_FILES_NAMES:
-            if os.path.exists("%s.json" % file_name):
-                with open("%s.json" % file_name) as file:
+        self._cache_files = dict(zip(DNSServer.CACHE_FILES_NAMES, [{}] * 3))
+        for file_name in DNSServer.CACHE_FILES_NAMES:
+            if os.path.exists("cache/%s.json" % file_name):
+                with open("cache/%s.json" % file_name) as file:
                     try:
-                        self._cash_files[file_name] = CashData.loads(
+                        self._cache_files[file_name] = CacheData.loads(
                             json.load(file))
                     except json.JSONDecodeError:
                         pass
         try:
-            list(map(lambda i: CashData.delete_old(i),
-                     self._cash_files.values()))
+            list(map(lambda i: CacheData.delete_old(i),
+                     self._cache_files.values()))
             self._requests = set()
             self._list_answers = set()
             while True:
                 try:
                     data, address = self._sock.recvfrom(1024)
                     message = DNSMessage().from_bytes(bytearray(data))
-                    list(map(lambda i: CashData.delete_old(i),
-                             self._cash_files.values()))
+                    list(map(lambda i: CacheData.delete_old(i),
+                             self._cache_files.values()))
                     if not message:
                         continue
                     if message.response_type == MessageType.QUERY:
                         if message.questions[0].request_type == RecordType.A:
-                            cash_file = self._cash_files["domains"]
+                            cache_file = self._cache_files["domains"]
                         elif (message.questions[0].request_type ==
                               RecordType.AAAA):
-                            cash_file = self._cash_files["domains_6"]
+                            cache_file = self._cache_files["domains_6"]
                         else:
-                            cash_file = self._cash_files["addresses"]
-                        if cash_file.get(
+                            cache_file = self._cache_files["addresses"]
+                        if cache_file.get(
                                 message.questions[0].name):
                             send_data = DNSMessage.make_answer(message,
-                                cash_file.get(
+                                cache_file.get(
                                     message.questions[0].name)).to_bytes()
                             self._sock.sendto(send_data, address)
                             continue
@@ -185,9 +185,9 @@ class DNSServer:
                     if not self._is_listen:
                         self._record_answers()
         finally:
-            for file_name in DNSServer.CASH_FILES_NAMES:
-                with open("%s.json" % file_name, "w") as file:
-                    json.dump(self._cash_files[file_name], file)
+            for file_name in DNSServer.CACHE_FILES_NAMES:
+                with open("cache/%s.json" % file_name, "w") as file:
+                    json.dump(self._cache_files[file_name], file)
             self._sock.close()
 
 

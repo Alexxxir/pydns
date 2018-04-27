@@ -13,7 +13,7 @@ def _create_parser():
         description="Кэширующий DNS сервер.")
     parser.add_argument("asked_server", nargs="?",
                         default="77.88.8.8")
-    parser.add_argument("-c", "--clear_cash", action="store_true",
+    parser.add_argument("-c", "--clear_cache", action="store_true",
                         help="Отчищает кэш")
     return parser.parse_args()
 
@@ -27,8 +27,8 @@ if __name__ == '__main__':
             pass
         finally:
             sys.exit(0)
-    if parser.clear_cash:
-        DNSServer.clear_cash()
+    if parser.clear_cache:
+        DNSServer.clear_cache()
         sys.exit(0)
     try:
         print("Сервер запущен")
