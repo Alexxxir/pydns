@@ -173,6 +173,10 @@ class DNSServer:
                         self._record_answers()
         finally:
             for file_name in DNSServer.CACHE_FILES_NAMES:
+                if os.path.exists("cache") and not os.path.isdir("cache"):
+                    os.remove("cache")
+                if not os.path.exists("cache"):
+                    os.mkdir("cache")
                 with open("cache/%s.json" % file_name, "w") as file:
                     json.dump(self._cache_files[file_name], file)
             self._sock.close()
