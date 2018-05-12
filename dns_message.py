@@ -29,7 +29,7 @@ def read_name(data, ind):
     name = ""
     while data[ind] != 0:
         if (data[ind] & 0b11000000) == 0b11000000:
-            ind = ((data[ind] & 0b00111111) * 2 ** 8 +
+            ind = (((data[ind] & 0b00111111) << 8) +
                    data[ind + 1])
         name_length = data[ind]
         ind += 1
@@ -76,7 +76,7 @@ class DNSQuestion:
             for _ in range(count_questions):
                 curr_question = DNSQuestion()
                 if (data[i] & 0b11000000) == 0b11000000:
-                    j = (data[i] & 0b00111111) * 2 ** 8 + data[i + 1]
+                    j = ((data[i] & 0b00111111) << 8) + data[i + 1]
                     i += 2
                     curr_question.name, _ = read_name(data, j)
                 else:
@@ -109,7 +109,7 @@ class DNSResourceRecord:
             for _ in range(count_record):
                 curr_record = DNSResourceRecord()
                 if (data[i] & 0b11000000) == 0b11000000:
-                    j = (data[i] & 0b00111111) * 2 ** 8 + data[i + 1]
+                    j = ((data[i] & 0b00111111) << 8) + data[i + 1]
                     i += 2
                     curr_record.name, _ = read_name(data, j)
                 else:
@@ -123,13 +123,27 @@ class DNSResourceRecord:
                 i += 4
                 curr_record.data_len = (data[i] * 2 ** 8 + data[i + 1])
                 i += 2
-                if (curr_record.request_type == RecordType.A and
-                        curr_record.data_len == 4):
-                    curr_record.data = data[i:i + curr_record.data_len]
-                else:
-                    curr_record.data = data[i:i + curr_record.data_len]
-                records.append(curr_record)
+                curr_record.data = data[i:i + curr_record.data_len]
+                if curr_record.request_type == RecordType.NS:
+                    if (data[i] & 0b11000000) == 0b11000000:
+                        j = ((data[i] & 0b00111111) << 8) + data[i + 1]
+                        name_, _ = read_name(data, j)
+                    else:
+                        name_, _ = read_name(data, i)
+                    lengths_ = iter(map(len, name_.split(".")))
+                    name__ = bytearray()
+                    name__.append(next(lengths_))
+                    for ch in name_:
+                        if ch != '.':
+                            name__.append(ord(ch))
+                        else:
+                            name__.append(next(lengths_))
                 i += curr_record.data_len
+                if curr_record.request_type == RecordType.NS:
+                    curr_record.data_len = len(name__)
+                    curr_record.data = name__
+
+                records.append(curr_record)
         except (ValueError, IndexError):
             raise IncorrectQuery
         return records, i

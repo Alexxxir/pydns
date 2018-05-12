@@ -37,7 +37,7 @@ class CacheData(dict):
         return self.data == other.data
 
     def __hash__(self):
-        return hash(self.death_time) + sum(map(hash, self.data))
+        return sum(map(hash, self.data))
 
     @staticmethod
     def loads(load):
@@ -64,7 +64,7 @@ class CacheData(dict):
 
 
 class DNSServer:
-    CACHE_FILES_NAMES = ["addresses", "domains", "domains_6"]
+    CACHE_FILES_NAMES = ["1", "2", "5", "6", "12", "13", "15", "28", "252", "255"]
 
     def __init__(self, host, port, asked_server):
         self._asked_server = asked_server
@@ -112,24 +112,14 @@ class DNSServer:
                         answer.answers,
                         answer.auth_servers, answer.addit_records):
                     if ans.data:
-                        if ans.request_type == RecordType.A:
-                            if not self._cache_files["domains"].get(ans.name):
-                                self._cache_files["domains"][ans.name] = []
-                            self._cache_files["domains"][ans.name].append(
-                                CacheData(ans.ttl + int(time.time()),
-                                          list(ans.data)))
-                        elif ans.request_type == RecordType.AAAA:
-                            if not self._cache_files["domains_6"].get(ans.name):
-                                self._cache_files["domains_6"][ans.name] = []
-                            self._cache_files["domains_6"][ans.name].append(
-                                CacheData(ans.ttl + int(time.time()),
-                                          list(ans.data)))
-                        else:
-                            if not self._cache_files["addresses"].get(ans.name):
-                                self._cache_files["addresses"][ans.name] = []
-                            self._cache_files["addresses"][ans.name].append(
-                                CacheData(ans.ttl + int(time.time()),
-                                          list(ans.data)))
+                        cache_file = str(int(ans.request_type))
+                        if not self._cache_files[cache_file].get(ans.name):
+                            self._cache_files[cache_file][ans.name] = []
+                        self._cache_files[cache_file][ans.name].append(
+                            CacheData(ans.ttl + int(time.time()),
+                                      list(ans.data)))
+                        list(map(lambda i: CacheData.delete_old(i),
+                                 self._cache_files.values()))
                 if request[0].id == answer.id:
                     self._sock.sendto(
                         answer.to_bytes(), request[1])
@@ -139,7 +129,9 @@ class DNSServer:
         self._list_answers = set()
 
     def run(self):
-        self._cache_files = dict(zip(DNSServer.CACHE_FILES_NAMES, [{}] * 3))
+        self._cache_files = dict(zip(
+            DNSServer.CACHE_FILES_NAMES, [{}] * len(
+                DNSServer.CACHE_FILES_NAMES)))
         for file_name in DNSServer.CACHE_FILES_NAMES:
             if os.path.exists("cache/%s.json" % file_name):
                 with open("cache/%s.json" % file_name) as file:
@@ -162,13 +154,8 @@ class DNSServer:
                     if not message:
                         continue
                     if message.response_type == MessageType.QUERY:
-                        if message.questions[0].request_type == RecordType.A:
-                            cache_file = self._cache_files["domains"]
-                        elif (message.questions[0].request_type ==
-                              RecordType.AAAA):
-                            cache_file = self._cache_files["domains_6"]
-                        else:
-                            cache_file = self._cache_files["addresses"]
+                        cache_file = self._cache_files[str(
+                            int(message.questions[0].request_type))]
                         if cache_file.get(
                                 message.questions[0].name):
                             send_data = DNSMessage.make_answer(message,
